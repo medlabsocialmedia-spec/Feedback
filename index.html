@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Customer Feedback</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+h1 {
+    font-size: 3em;
+    margin-bottom: 100px;
+    text-align: center;
+}
+
+.smileys {
+    display: flex;
+    justify-content: space-between;
+    width: 90%;
+    max-width: 1800px;
+}
+
+.smiley {
+    width: 18vw;
+    max-width: 240px;
+    min-width: 120px;
+    transition: transform 0.2s, opacity 0.2s;
+    cursor: pointer;
+}
+
+.smiley.selected {
+    transform: scale(1.5);
+}
+
+.smiley.dim {
+    opacity: 0.3;
+}
+
+.extra-box {
+    margin-top: 80px;
+    display: none;
+    text-align: center;
+}
+
+.extra-box input {
+    padding: 12px;
+    font-size: 18px;
+    width: 300px;
+    max-width: 90%;
+    margin-top: 10px;
+}
+
+.submit-btn {
+    margin-top: 45px;
+    padding: 15px 40px;
+    font-size: 22px;
+    border: none;
+    border-radius: 8px;
+    background: #007bff;
+    color: white;
+    cursor: pointer;
+    display: none;
+}
+
+.submit-btn:hover {
+    background: #0056b3;
+}
+
+.thank-you {
+    display: none;
+    font-size: 2em;
+    color: green;
+    margin-top: 90px;
+    text-align: center;
+}
+</style>
+</head>
+
+<body>
+
+<h1>How was your experience?</h1>
+
+<div class="smileys">
+    <img class="smiley" data-score="5" src="images/5.png">
+    <img class="smiley" data-score="4" src="images/4.png">
+    <img class="smiley" data-score="3" src="images/3.png">
+    <img class="smiley" data-score="2" src="images/2.png">
+    <img class="smiley" data-score="1" src="images/1.png">
+</div>
+
+<div class="extra-box" id="contactBox">
+    <p>Would you like to share your contact number so we could reach out?</p>
+    <input type="text" id="contactNumber" placeholder="Contact Number">
+</div>
+
+<button class="submit-btn" id="submitBtn">Submit</button>
+
+<div class="thank-you" id="thankYou">
+    Thank you for your feedback!
+</div>
+
+<script>
+let selectedScore = null;
+let resetTimer = null;
+
+const smileys = document.querySelectorAll('.smiley');
+const submitBtn = document.getElementById('submitBtn');
+const contactBox = document.getElementById('contactBox');
+const thankYou = document.getElementById('thankYou');
+const contactInput = document.getElementById('contactNumber');
+
+if (!localStorage.getItem('feedbacks')) {
+    localStorage.setItem('feedbacks', JSON.stringify([]));
+}
+
+// Timestamp for CSV filename
+function getTimestamp() {
+    const d = new Date();
+    const pad = n => n.toString().padStart(2, '0');
+    return `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()}-${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+}
+
+// CSV export
+function downloadCSV() {
+    const feedbacks = JSON.parse(localStorage.getItem('feedbacks'));
+    if (!feedbacks.length) return;
+
+    let csv = "Score,Contact,Timestamp\n";
+    feedbacks.forEach(f => {
+        csv += `"${f.score}","${f.contact}","${f.timestamp}"\n`;
+    });
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `feedback-${getTimestamp()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// Smiley click
+smileys.forEach(smiley => {
+    smiley.addEventListener('click', () => {
+        selectedScore = smiley.dataset.score;
+
+        smileys.forEach(s => {
+            s.classList.remove('selected');
+            s.classList.add('dim');
+        });
+
+        smiley.classList.add('selected');
+        smiley.classList.remove('dim');
+
+        submitBtn.style.display = 'block';
+        contactBox.style.display = selectedScore <= 3 ? 'block' : 'none';
+
+        if (resetTimer) clearTimeout(resetTimer);
+        resetTimer = setTimeout(resetPage, 15000);
+    });
+});
+
+// Submit
+submitBtn.addEventListener('click', () => {
+    if (resetTimer) clearTimeout(resetTimer);
+
+    const contact = contactInput.value.trim();
+
+    // Hidden export
+    if (selectedScore == 1 && contact.toLowerCase() === "export") {
+        downloadCSV();
+        thankYou.style.display = 'block';
+        setTimeout(() => location.reload(), 2000);
+        return;
+    }
+
+    // Phone validation
+    if (contact !== "") {
+        const phoneRegex = /^[79][0-9]{6}$/;
+        if (!phoneRegex.test(contact)) {
+            alert("Phone number entered is incorrect");
+            contactInput.focus();
+            return;
+        }
+    }
+
+    const feedbacks = JSON.parse(localStorage.getItem('feedbacks'));
+    feedbacks.push({
+        score: selectedScore,
+        contact: contact,
+        timestamp: new Date().toISOString()
+    });
+    localStorage.setItem('feedbacks', JSON.stringify(feedbacks));
+
+    thankYou.style.display = 'block';
+    submitBtn.style.display = 'none';
+    contactBox.style.display = 'none';
+
+    setTimeout(() => location.reload(), 2000);
+});
+
+function resetPage() {
+    smileys.forEach(s => s.classList.remove('selected', 'dim'));
+    submitBtn.style.display = 'none';
+    contactBox.style.display = 'none';
+    selectedScore = null;
+}
+</script>
+
+</body>
+</html>
